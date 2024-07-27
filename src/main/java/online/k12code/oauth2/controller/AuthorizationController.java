@@ -37,11 +37,6 @@ public class AuthorizationController {
 
     private final OAuth2AuthorizationConsentService oAuth2AuthorizationConsentService;
 
-    @GetMapping("/test")
-    @ResponseBody
-    public String test(){
-        return "测试成功";
-    }
 
     @GetMapping("/login")
     public String login() {
@@ -95,6 +90,28 @@ public class AuthorizationController {
 
         return "consent";
     }
+
+    /**
+     * 设备码相关接口
+     */
+    @GetMapping("/activate")
+    public String activate(@RequestParam(value = "user_code", required = false) String userCode) {
+        if (userCode != null) {
+            return "redirect:/oauth2/device_verification?user_code=" + userCode;
+        }
+        return "device-activate";
+    }
+
+    @GetMapping("/activated")
+    public String activated() {
+        return "device-activated";
+    }
+
+    @GetMapping(value = "/", params = "success")
+    public String success() {
+        return "device-activated";
+    }
+
 
     private static Set<ScopeWithDescription> withDescription(Set<String> scopes) {
         Set<ScopeWithDescription> scopeWithDescriptions = new HashSet<>();

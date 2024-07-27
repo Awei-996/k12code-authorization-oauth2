@@ -3,6 +3,7 @@ package online.k12code.oauth2.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.userdetails.User;
@@ -35,7 +36,11 @@ public class DefaultSecurityConfig {
                         .anyRequest().authenticated()
                 )
                 // 设置自定义登录页面
-                .formLogin(formLogin -> formLogin.loginPage("/login"));
+                .formLogin(formLogin -> formLogin.loginPage("/login"))
+                // 配置资源服务器使用JWT进行验证，接受用户信息和或客户端注册的访问令牌，
+                // 如果想让当前服务作为一个资源服务，就需要配置这个使他能有解析token的能力
+                // 而authorizationServerSecurityFilterChain过滤链中就不需要添加这个命令了
+                .oauth2ResourceServer((resourceServer) -> resourceServer.jwt(Customizer.withDefaults()));
 
         return httpSecurity.build();
     }

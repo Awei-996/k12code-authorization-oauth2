@@ -5,6 +5,8 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
+import online.k12code.oauth2.authorization.DeviceClientAuthenticationConverter;
+import online.k12code.oauth2.authorization.DeviceClientAuthenticationProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
@@ -15,6 +17,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -46,6 +49,7 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.util.Objects;
 import java.util.UUID;
 
 
@@ -69,26 +73,38 @@ public class AuthorizationConfig {
      */
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
-    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity httpSecurity) throws Exception {
+    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity httpSecurity, RegisteredClientRepository registeredClientRepository, AuthorizationServerSettings authorizationServerSettings) throws Exception {
         // 应用OAuth2 授权服务器的默认安全配置
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(httpSecurity);
+
+        // 新建自定义的设备码converter和provide
+        DeviceClientAuthenticationConverter deviceClientAuthenticationConverter = new DeviceClientAuthenticationConverter(authorizationServerSettings.getDeviceAuthorizationEndpoint());
+        DeviceClientAuthenticationProvider deviceClientAuthenticationProvider = new DeviceClientAuthenticationProvider(registeredClientRepository);
+
 
         // 配置授权端点，设置自定义授权页面
         httpSecurity.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
                 // 开启OIDC协议相关端点
                 .oidc(Customizer.withDefaults())
                 // 设置自定义用户确认授权页
-                .authorizationEndpoint(oAuth2AuthorizationEndpointConfigurer -> oAuth2AuthorizationEndpointConfigurer.consentPage(CUSTOM_CONSENT_PAGE_URI));
+                .authorizationEndpoint(oAuth2AuthorizationEndpointConfigurer -> oAuth2AuthorizationEndpointConfigurer.consentPage(CUSTOM_CONSENT_PAGE_URI))
+                // 设置设备码用户验证url(自定义用户验证页)
+                .deviceAuthorizationEndpoint(deviceAuthorizationEndpoint -> deviceAuthorizationEndpoint.verificationUri("/activate"))
+                // 设置验证设备码用户确认页面
+                .deviceVerificationEndpoint(deviceVerificationEndpoint -> deviceVerificationEndpoint.consentPage(CUSTOM_CONSENT_PAGE_URI))
+                // 客户端认证添加设备码的converter和provider
+                .clientAuthentication(clientAuthentication -> clientAuthentication
+                        .authenticationConverter(deviceClientAuthenticationConverter)
+                        .authenticationProvider(deviceClientAuthenticationProvider)
+                );
 
         // 配置异常处理，未认证用户访问HTML页面时重定向到/login
         httpSecurity.exceptionHandling((exceptions) -> exceptions.defaultAuthenticationEntryPointFor(
-                        // 未认证时重定向到/login页面
-                        new LoginUrlAuthenticationEntryPoint("/login"),
-                        // 仅在请求HTML页面时生效
-                        new MediaTypeRequestMatcher(MediaType.TEXT_HTML)
-                ))
-                // 配置资源服务器使用JWT进行验证，接受用户信息和或客户端注册的访问令牌
-                .oauth2ResourceServer((resourceServer) -> resourceServer.jwt(Customizer.withDefaults()));
+                // 未认证时重定向到/login页面
+                new LoginUrlAuthenticationEntryPoint("/login"),
+                // 仅在请求HTML页面时生效
+                new MediaTypeRequestMatcher(MediaType.TEXT_HTML)
+        ));
 
         return httpSecurity.build();
 
@@ -137,18 +153,18 @@ public class AuthorizationConfig {
                 // token相关设置
                 .tokenSettings(TokenSettings.builder().build())
                 // 客户端设置，设置用户是否确定授权 true表示确定授权
-                .clientSettings(ClientSettings.builder().requireAuthorizationConsent(true).build())
+                .clientSettings(ClientSettings.builder().requireAuthorizationConsent(Boolean.TRUE).build())
                 .build();
 
         // 基于db存储客户端
         JdbcRegisteredClientRepository jdbcRegisteredClientRepository = new JdbcRegisteredClientRepository(jdbcTemplate);
         // 如果客户端不存在，则保存客户端
         RegisteredClient byClientId = jdbcRegisteredClientRepository.findByClientId(registeredClient.getClientId());
-        if (byClientId == null) {
+        if (Objects.isNull(byClientId)) {
             jdbcRegisteredClientRepository.save(registeredClient);
         }
 
-        // 创建授权码客户端
+        // 创建设备码授权码客户端
         RegisteredClient deviceClient = RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId("device-message-client")
                 // 认证凡是NONE表示是一个公共客户端
@@ -159,8 +175,25 @@ public class AuthorizationConfig {
                 .scope("message.write")
                 .build();
         RegisteredClient byClientId1 = jdbcRegisteredClientRepository.findByClientId(deviceClient.getClientId());
-        if (byClientId1 == null) {
+        if (Objects.isNull(byClientId1)) {
             jdbcRegisteredClientRepository.save(deviceClient);
+        }
+
+        // PKCE(扩展码)客户端
+        RegisteredClient pkceClient = RegisteredClient.withId(UUID.randomUUID().toString())
+                .clientId("pkce-message-client")
+                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .redirectUri("http://127.0.0.1:8080/login/oauth2/code/messaging-client-oidc")
+                .scope("message.read")
+                .scope("message.write")
+                // 设置支持proof key
+                .clientSettings(ClientSettings.builder().requireProofKey(Boolean.TRUE).build())
+                .build();
+        RegisteredClient byClientId2 = jdbcRegisteredClientRepository.findByClientId(pkceClient.getClientId());
+        if (Objects.isNull(byClientId2)) {
+            jdbcRegisteredClientRepository.save(pkceClient);
         }
         return jdbcRegisteredClientRepository;
     }
