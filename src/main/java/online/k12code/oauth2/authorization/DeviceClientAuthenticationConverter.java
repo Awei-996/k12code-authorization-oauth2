@@ -19,7 +19,7 @@ import org.springframework.util.StringUtils;
 
 /**
  * 获取请求中参数转化为DeviceClientAuthenticationToken
- *
+ * 会先执行这个类，将请求转化为合适的AuthenticationProvider，然后在去AuthenticationProvider里面执行
  * @author Carl
  * @since 1.0.0
  */

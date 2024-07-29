@@ -1,5 +1,6 @@
 package online.k12code.oauth2.config;
 
+import online.k12code.oauth2.utils.SecurityUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -40,7 +41,10 @@ public class DefaultSecurityConfig {
                 // 配置资源服务器使用JWT进行验证，接受用户信息和或客户端注册的访问令牌，
                 // 如果想让当前服务作为一个资源服务，就需要配置这个使他能有解析token的能力
                 // 而authorizationServerSecurityFilterChain过滤链中就不需要添加这个命令了
-                .oauth2ResourceServer((resourceServer) -> resourceServer.jwt(Customizer.withDefaults()));
+                .oauth2ResourceServer((resourceServer) -> resourceServer
+                        .jwt(Customizer.withDefaults())
+                        .accessDeniedHandler(SecurityUtils::exceptionHandler) // 添加自定义异常处理
+                        .authenticationEntryPoint(SecurityUtils::exceptionHandler));
 
         return httpSecurity.build();
     }
