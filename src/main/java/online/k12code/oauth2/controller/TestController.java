@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class TestController {
 
-    @PreAuthorize("hasAuthority('SCOPE_message.read')")
+    @PreAuthorize("hasAuthority('app')")
     @GetMapping("/t1")
     public String t1(){
         System.out.println(1111111111);

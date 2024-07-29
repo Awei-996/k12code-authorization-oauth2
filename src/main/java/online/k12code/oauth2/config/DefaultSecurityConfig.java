@@ -7,12 +7,25 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.parameters.P;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * @author Carl
@@ -48,6 +61,7 @@ public class DefaultSecurityConfig {
 
         return httpSecurity.build();
     }
+
     /**
      * 先暂时配置一个基于内存的用户，框架在用户认证会默认调用
      * {@link UserDetailsService#loadUserByUsername(String)} 方法根据
@@ -65,4 +79,31 @@ public class DefaultSecurityConfig {
                 .build();
         return new InMemoryUserDetailsManager(build);
     }
+
+    @Bean
+    public OAuth2TokenCustomizer<JwtEncodingContext> oAuth2TokenCustomizer() {
+        return context -> {
+            // 检查登录用户信息是不是UserDetails, 排除没有用户参与的流程
+            if (context.getPrincipal().getPrincipal() instanceof UserDetails user) {
+                // 获取申请的scopes
+                Set<String> authorizedScopes = context.getAuthorizedScopes();
+                // 获取用户的权限
+                Collection<? extends GrantedAuthority> authorities = user.getAuthorities();
+                // 提取权限并转化为字符串
+                Set<String> collect = Optional.ofNullable(authorities)
+                        .orElse(Collections.emptyList())
+                        .stream()
+                        .map(GrantedAuthority::getAuthority)
+                        .collect(Collectors.toSet());
+                // 合并授权信息
+                collect.addAll(authorizedScopes);
+                // 将授权信息放入jwt的claims中
+                JwtClaimsSet.Builder claims = context.getClaims();
+                claims.claim("authorities", collect);
+                // 还可以自定义其他内容
+                System.out.println(claims);
+            }
+        };
+    }
+
 }
