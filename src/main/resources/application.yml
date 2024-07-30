@@ -1,22 +1,6 @@
-server:
-  port: 8080
-
-logging:
-  level:
-    root: INFO
-    org.springframework.web: INFO
-    org.springframework.security: INFO
-#    org.springframework.boot.autoconfigure: DEBUG
-
 spring:
-  thymeleaf:
-    cache: false
-  security:
-    oauth2:
-      client:
-        registration:
-          github:
-            client-id:
-            client-secret:
-            # 这个回调地址会覆盖你在GitHub上面写的回调地址（如果不写就会用github上面的地址）
-            redirect-uri: http://localhost:8080/login/oauth2/code/github
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://k12code.online:3306/auth2?serverTimezone=UTC&userUnicode=true&characterEncoding=utf-8&useSSL=false
+    username: root
+    password: 333333
