@@ -8,6 +8,7 @@ import org.springframework.security.oauth2.server.authorization.OAuth2Authorizat
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
@@ -41,6 +42,14 @@ public class AuthorizationController {
     @GetMapping("/login")
     public String login() {
         return "login";
+    }
+    @ResponseBody
+    @GetMapping("/user")
+    public Map<String,Object> user(Principal principal) {
+        if (!(principal instanceof JwtAuthenticationToken token)) {
+            return Collections.emptyMap();
+        }
+        return token.getToken().getClaims();
     }
 
     @GetMapping(value = "/oauth2/consent")

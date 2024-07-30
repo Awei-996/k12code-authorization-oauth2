@@ -1,0 +1,8 @@
+server:
+  port: 8100
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://10.10.20.66:8080

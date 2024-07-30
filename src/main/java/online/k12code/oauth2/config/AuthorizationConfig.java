@@ -273,9 +273,10 @@ public class AuthorizationConfig {
      */
     @Bean
     public AuthorizationServerSettings authorizationServerSettings() {
-        return AuthorizationServerSettings.builder().build();
+        return AuthorizationServerSettings.builder()
+                .issuer("http://10.10.20.66:8080")
+                .build();
     }
-
 
 
     @Bean
